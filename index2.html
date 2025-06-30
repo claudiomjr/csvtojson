@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de CSV para JSON</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 hover:shadow-3xl">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">CSV para JSON</h1>
+
+        <div class="mb-5">
+            <label for="csvFile" class="block text-gray-700 text-sm font-semibold mb-2">Selecione seu arquivo CSV:</label>
+            <input type="file" id="csvFile" accept=".csv" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200">
+        </div>
+
+        <div class="mb-5">
+            <label for="separator" class="block text-gray-700 text-sm font-semibold mb-2">Separador (ex: , ; | tab):</label>
+            <input type="text" id="separator" value="," maxlength="1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200" placeholder="Insira o separador (e.g., , ;)">
+        </div>
+
+        <div class="mb-6 flex items-center">
+            <input type="checkbox" id="hasHeader" checked class="form-checkbox h-5 w-5 text-blue-600 rounded-md focus:ring-blue-500">
+            <label for="hasHeader" class="ml-2 text-gray-700 text-sm font-semibold">O arquivo possui cabeçalho?</label>
+        </div>
+
+        <button id="convertButton" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105 shadow-lg">
+            Converter para JSON
+        </button>
+
+        <div id="messageBox" class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg hidden" role="alert">
+            <!-- Mensagens de erro serão exibidas aqui -->
+        </div>
+
+        <div class="mt-8">
+            <label for="jsonOutput" class="block text-gray-700 text-sm font-semibold mb-2">JSON Gerado:</label>
+            <textarea id="jsonOutput" readonly class="w-full h-64 p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 text-sm resize-y focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+            <button id="copyButton" class="mt-3 w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105 shadow-lg">
+                Copiar JSON
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const csvFile = document.getElementById('csvFile');
+            const separatorInput = document.getElementById('separator');
+            const hasHeaderCheckbox = document.getElementById('hasHeader');
+            const convertButton = document.getElementById('convertButton');
+            const jsonOutput = document.getElementById('jsonOutput');
+            const copyButton = document.getElementById('copyButton');
+            const messageBox = document.getElementById('messageBox');
+
+            /**
+             * Exibe uma mensagem na caixa de mensagem.
+             * @param {string} message - A mensagem a ser exibida.
+             * @param {string} type - O tipo da mensagem ('success', 'error', 'info').
+             */
+            function showMessage(message, type) {
+                messageBox.textContent = message;
+                messageBox.className = `mt-4 p-3 rounded-lg ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
+                messageBox.classList.remove('hidden');
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, 5000); // Esconde a mensagem após 5 segundos
+            }
+
+            convertButton.addEventListener('click', () => {
+                const file = csvFile.files[0];
+                let separator = separatorInput.value;
+                const hasHeader = hasHeaderCheckbox.checked;
+
+                if (!file) {
+                    showMessage('Por favor, selecione um arquivo CSV.', 'error');
+                    return;
+                }
+
+                if (!separator) {
+                    showMessage('Por favor, informe o separador.', 'error');
+                    return;
+                }
+
+                // Handle 'tab' as a special separator
+                if (separator.toLowerCase() === 'tab') {
+                    separator = '\t';
+                }
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split('\n').filter(line => line.trim() !== ''); // Remove linhas vazias
+
+                        if (lines.length === 0) {
+                            showMessage('O arquivo CSV está vazio ou inválido.', 'error');
+                            jsonOutput.value = '';
+                            return;
+                        }
+
+                        // Regex para dividir a linha CSV, considerando aspas duplas.
+                        // Ele procura pelo separador que não é seguido por um número par de aspas duplas.
+                        // Isso significa que o separador não está dentro de um campo entre aspas.
+                        // O separador precisa ser escapado se for um caractere especial de regex
+                        const escapedSeparator = separator.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                        const regex = new RegExp(`${escapedSeparator}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+
+                        let headers = [];
+                        let dataRows = [];
+
+                        if (hasHeader) {
+                            // Divide a linha do cabeçalho usando a regex e remove as aspas duplas
+                            headers = lines[0].split(regex).map(h => h.trim().replace(/^"|"$/g, ''));
+                            dataRows = lines.slice(1);
+                        } else {
+                            // Se não tiver cabeçalho, criamos headers genéricos (col1, col2, etc.)
+                            const firstLineCols = lines[0].split(regex);
+                            for (let i = 0; i < firstLineCols.length; i++) {
+                                headers.push(`col${i + 1}`);
+                            }
+                            dataRows = lines;
+                        }
+
+                        const jsonArray = [];
+                        for (const row of dataRows) {
+                            const values = row.split(regex).map(v => v.trim().replace(/^"|"$/g, '')); // Remove aspas duplas dos valores
+                            if (values.length !== headers.length) {
+                                // Ignorar linhas com número inconsistente de colunas ou avisar
+                                console.warn(`Linha ignorada devido a inconsistência de colunas: ${row}`);
+                                continue; // Pula para a próxima linha
+                            }
+                            const obj = {};
+                            for (let i = 0; i < headers.length; i++) {
+                                // Manter os valores como strings, conforme solicitado
+                                obj[headers[i]] = values[i];
+                            }
+                            jsonArray.push(obj);
+                        }
+
+                        jsonOutput.value = JSON.stringify(jsonArray, null, 2);
+                        showMessage('Conversão realizada com sucesso!', 'success');
+
+                    } catch (error) {
+                        console.error('Erro ao processar o arquivo CSV:', error);
+                        showMessage('Ocorreu um erro ao converter o arquivo. Verifique o separador e o formato do CSV.', 'error');
+                        jsonOutput.value = '';
+                    }
+                };
+
+                reader.onerror = () => {
+                    showMessage('Não foi possível ler o arquivo.', 'error');
+                    jsonOutput.value = '';
+                };
+
+                reader.readAsText(file);
+            });
+
+            copyButton.addEventListener('click', () => {
+                jsonOutput.select();
+                try {
+                    // document.execCommand('copy') é mais compatível em iframes do que navigator.clipboard.writeText()
+                    const successful = document.execCommand('copy');
+                    const msg = successful ? 'JSON copiado para a área de transferência!' : 'Falha ao copiar o JSON.';
+                    showMessage(msg, successful ? 'success' : 'error');
+                } catch (err) {
+                    console.error('Erro ao copiar: ', err);
+                    showMessage('Falha ao copiar o JSON.', 'error');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

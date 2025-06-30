@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversor de CSV para JSON</title>
+    <title>Conversor de CSV para JSON e SQL</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -26,7 +26,7 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 hover:shadow-3xl">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">CSV para JSON</h1>
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">CSV para JSON e SQL</h1>
 
         <div class="mb-5">
             <label for="csvFile" class="block text-gray-700 text-sm font-semibold mb-2">Selecione seu arquivo CSV:</label>
@@ -48,7 +48,7 @@
         </button>
 
         <div id="messageBox" class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg hidden" role="alert">
-            <!-- Mensagens de erro serão exibidas aqui -->
+            <!-- Mensagens de erro para CSV/JSON serão exibidas aqui -->
         </div>
 
         <div class="mt-8">
@@ -58,44 +58,92 @@
                 Copiar JSON
             </button>
         </div>
+
+        <!-- Nova seção para gerar SQL -->
+        <div class="mt-8 pt-8 border-t border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Gerar Query SQL</h2>
+
+            <div class="mb-5">
+                <label for="tableName" class="block text-gray-700 text-sm font-semibold mb-2">Nome da Tabela:</label>
+                <input type="text" id="tableName" value="produtos_promocionais" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200" placeholder="Ex: minha_tabela">
+            </div>
+
+            <div class="mb-5">
+                <label for="platformName" class="block text-gray-700 text-sm font-semibold mb-2">Plataforma:</label>
+                <input type="text" id="platformName" value="Shopee" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200" placeholder="Ex: Shopee">
+            </div>
+
+            <div class="mb-5">
+                <label for="categoryName" class="block text-gray-700 text-sm font-semibold mb-2">Categoria:</label>
+                <input type="text" id="categoryName" value="Moda" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200" placeholder="Ex: Moda">
+            </div>
+            
+            <button id="generateSqlButton" class="w-full bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105 shadow-lg">
+                Gerar Query SQL
+            </button>
+
+            <div id="sqlMessageBox" class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg hidden" role="alert">
+                <!-- Mensagens de erro para SQL serão exibidas aqui -->
+            </div>
+
+            <div class="mt-8">
+                <label for="sqlOutput" class="block text-gray-700 text-sm font-semibold mb-2">Query SQL Gerada:</label>
+                <textarea id="sqlOutput" readonly class="w-full h-64 p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 text-sm resize-y focus:ring-2 focus:ring-purple-500 focus:border-purple-500"></textarea>
+                <button id="copySqlButton" class="mt-3 w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105 shadow-lg">
+                    Copiar Query SQL
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Elementos do CSV/JSON
             const csvFile = document.getElementById('csvFile');
             const separatorInput = document.getElementById('separator');
             const hasHeaderCheckbox = document.getElementById('hasHeader');
             const convertButton = document.getElementById('convertButton');
             const jsonOutput = document.getElementById('jsonOutput');
             const copyButton = document.getElementById('copyButton');
-            const messageBox = document.getElementById('messageBox');
+            const messageBox = document.getElementById('messageBox'); // Para mensagens de CSV/JSON
+
+            // Elementos do SQL
+            const tableNameInput = document.getElementById('tableName');
+            const platformNameInput = document.getElementById('platformName'); // Novo input
+            const categoryNameInput = document.getElementById('categoryName'); // Novo input
+            const generateSqlButton = document.getElementById('generateSqlButton');
+            const sqlOutput = document.getElementById('sqlOutput');
+            const copySqlButton = document.getElementById('copySqlButton');
+            const sqlMessageBox = document.getElementById('sqlMessageBox'); // Para mensagens de SQL
 
             /**
-             * Exibe uma mensagem na caixa de mensagem.
+             * Exibe uma mensagem na caixa de mensagem especificada.
+             * @param {HTMLElement} boxElement - O elemento da caixa de mensagem (messageBox ou sqlMessageBox).
              * @param {string} message - A mensagem a ser exibida.
-             * @param {string} type - O tipo da mensagem ('success', 'error', 'info').
+             * @param {string} type - O tipo da mensagem ('success', 'error').
              */
-            function showMessage(message, type) {
-                messageBox.textContent = message;
-                messageBox.className = `mt-4 p-3 rounded-lg ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
-                messageBox.classList.remove('hidden');
+            function showMessage(boxElement, message, type) {
+                boxElement.textContent = message;
+                boxElement.className = `mt-4 p-3 rounded-lg ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
+                boxElement.classList.remove('hidden');
                 setTimeout(() => {
-                    messageBox.classList.add('hidden');
+                    boxElement.classList.add('hidden');
                 }, 5000); // Esconde a mensagem após 5 segundos
             }
 
+            // Lógica de conversão CSV para JSON
             convertButton.addEventListener('click', () => {
                 const file = csvFile.files[0];
                 let separator = separatorInput.value;
                 const hasHeader = hasHeaderCheckbox.checked;
 
                 if (!file) {
-                    showMessage('Por favor, selecione um arquivo CSV.', 'error');
+                    showMessage(messageBox, 'Por favor, selecione um arquivo CSV.', 'error');
                     return;
                 }
 
                 if (!separator) {
-                    showMessage('Por favor, informe o separador.', 'error');
+                    showMessage(messageBox, 'Por favor, informe o separador.', 'error');
                     return;
                 }
 
@@ -112,7 +160,7 @@
                         const lines = text.split('\n').filter(line => line.trim() !== ''); // Remove linhas vazias
 
                         if (lines.length === 0) {
-                            showMessage('O arquivo CSV está vazio ou inválido.', 'error');
+                            showMessage(messageBox, 'O arquivo CSV está vazio ou inválido.', 'error');
                             jsonOutput.value = '';
                             return;
                         }
@@ -157,33 +205,150 @@
                         }
 
                         jsonOutput.value = JSON.stringify(jsonArray, null, 2);
-                        showMessage('Conversão realizada com sucesso!', 'success');
+                        showMessage(messageBox, 'Conversão realizada com sucesso!', 'success');
 
                     } catch (error) {
                         console.error('Erro ao processar o arquivo CSV:', error);
-                        showMessage('Ocorreu um erro ao converter o arquivo. Verifique o separador e o formato do CSV.', 'error');
+                        showMessage(messageBox, 'Ocorreu um erro ao converter o arquivo. Verifique o separador e o formato do CSV.', 'error');
                         jsonOutput.value = '';
                     }
                 };
 
                 reader.onerror = () => {
-                    showMessage('Não foi possível ler o arquivo.', 'error');
+                    showMessage(messageBox, 'Não foi possível ler o arquivo.', 'error');
                     jsonOutput.value = '';
                 };
 
                 reader.readAsText(file);
             });
 
+            // Lógica para copiar JSON
             copyButton.addEventListener('click', () => {
                 jsonOutput.select();
                 try {
                     // document.execCommand('copy') é mais compatível em iframes do que navigator.clipboard.writeText()
                     const successful = document.execCommand('copy');
                     const msg = successful ? 'JSON copiado para a área de transferência!' : 'Falha ao copiar o JSON.';
-                    showMessage(msg, successful ? 'success' : 'error');
+                    showMessage(messageBox, msg, successful ? 'success' : 'error');
                 } catch (err) {
-                    console.error('Erro ao copiar: ', err);
-                    showMessage('Falha ao copiar o JSON.', 'error');
+                    console.error('Erro ao copiar JSON: ', err);
+                    showMessage(messageBox, 'Falha ao copiar o JSON.', 'error');
+                }
+            });
+
+            // Lógica para gerar Query SQL
+            generateSqlButton.addEventListener('click', () => {
+                const tableName = tableNameInput.value.trim();
+                const jsonText = jsonOutput.value;
+                const platform = platformNameInput.value.trim(); // Obtém o valor da plataforma
+                const category = categoryNameInput.value.trim(); // Obtém o valor da categoria
+
+                if (!tableName) {
+                    showMessage(sqlMessageBox, 'Por favor, insira o nome da tabela.', 'error');
+                    return;
+                }
+
+                if (!jsonText) {
+                    showMessage(sqlMessageBox, 'Nenhum JSON para converter. Converta o CSV primeiro.', 'error');
+                    sqlOutput.value = '';
+                    return;
+                }
+
+                try {
+                    const data = JSON.parse(jsonText);
+
+                    if (data.length === 0) {
+                        showMessage(sqlMessageBox, 'O JSON está vazio, não há dados para gerar a query SQL.', 'error');
+                        sqlOutput.value = '';
+                        return;
+                    }
+
+                    // Mapeamento explícito de chaves do JSON para colunas SQL
+                    const jsonToSqlMap = {
+                        "Item Id": "item_id",
+                        "Item Name": "nome_item",
+                        "Price": "preco",
+                        "Sales": "vendas",
+                        "Shop Name": "nome_loja",
+                        "Commission Rate": "taxa_comissao",
+                        "Commission": "valor_comissao",
+                        "Product Link": "link_produto",
+                        "Offer Link": "link_oferta"
+                    };
+
+                    // Colunas SQL na ordem correta para o INSERT
+                    const sqlColumns = [
+                        "item_id", "nome_item", "preco", "vendas", "nome_loja",
+                        "taxa_comissao", "valor_comissao", "link_produto", "link_oferta",
+                        "plataforma", "categoria"
+                    ];
+
+                    const sqlStatements = [];
+                    const columnString = sqlColumns.map(col => `\`${col}\``).join(', ');
+
+                    for (const row of data) {
+                        const values = sqlColumns.map(col => {
+                            let value;
+                            if (col === "plataforma") {
+                                value = platform; // Usa o valor do input de plataforma
+                            } else if (col === "categoria") {
+                                value = category; // Usa o valor do input de categoria
+                            } else {
+                                // Encontra a chave JSON correspondente à coluna SQL
+                                const jsonKey = Object.keys(jsonToSqlMap).find(key => jsonToSqlMap[key] === col);
+                                value = row[jsonKey]; // Pega o valor do JSON original
+                            }
+
+                            // Converte null, undefined ou strings vazias (após trim) para 'NULL' SQL
+                            if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+                                return 'NULL';
+                            }
+
+                            // Tratamento específico para preço e comissão
+                            if (col === "preco" || col === "valor_comissao") {
+                                // Remove "R$", substitui vírgula por ponto e tenta converter para número
+                                const cleanedValue = String(value).replace('R$', '').replace(',', '.').trim();
+                                const numericValue = parseFloat(cleanedValue);
+                                if (!isNaN(numericValue)) {
+                                    return numericValue; // Retorna o número sem aspas
+                                } else {
+                                    // Se não for um número válido, trata como string ou NULL
+                                    console.warn(`Valor inválido para ${col}: '${value}'. Inserindo como NULL.`);
+                                    return 'NULL';
+                                }
+                            }
+
+                            // Trata outros números (se houver, embora CSVs possam vir como string)
+                            if (typeof value === 'number' || (typeof value === 'string' && !isNaN(Number(value)) && !isNaN(parseFloat(value)) && String(value).trim() !== '')) {
+                                return value;
+                            }
+
+                            // Para todas as outras strings, escapa aspas simples e as envolve em aspas simples
+                            return `'${String(value).replace(/'/g, "''")}'`;
+                        });
+                        sqlStatements.push(`INSERT INTO \`${tableName}\` (${columnString}) VALUES (${values.join(', ')});`);
+                    }
+
+                    sqlOutput.value = sqlStatements.join('\n');
+                    showMessage(sqlMessageBox, 'Query SQL gerada com sucesso!', 'success');
+
+                } catch (error) {
+                    console.error('Erro ao gerar a query SQL:', error);
+                    showMessage(sqlMessageBox, 'Ocorreu um erro ao gerar a query SQL. Verifique o formato do JSON e os valores fornecidos.', 'error');
+                    sqlOutput.value = '';
+                }
+            });
+
+            // Lógica para copiar Query SQL
+            copySqlButton.addEventListener('click', () => {
+                sqlOutput.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    const msg = successful ? 'Query SQL copiada para a área de transferência!' : 'Falha ao copiar a Query SQL.';
+                    showMessage(sqlMessageBox, msg, successful ? 'success' : 'error');
+                } catch (err) {
+                    console.error('Erro ao copiar SQL: ', err);
+                    showMessage(sqlMessageBox, 'Falha ao copiar a Query SQL.', 'error');
                 }
             });
         });
